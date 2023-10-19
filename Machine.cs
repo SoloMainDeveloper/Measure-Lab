@@ -70,4 +70,14 @@ public class Machine
         foreach (var item in arguments)
             Debug.Log(DataHolder.Points[(int)item]);
     }
+
+    public void DevCircle(List<double> arguments, int number)
+    {
+        
+    }
+
+    public void DevPoint(List<double> arguments, int number)
+    {
+        
+    }
 }
