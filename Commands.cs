@@ -10,15 +10,11 @@ public static class Commands
             { "POINT", CommandType.POINT},
             { "PLANE", CommandType.PLANE},
             { "CIRCLE", CommandType.CIRCLE},
-            { "DEVPOINT", CommandType.DEVPOINT},
-            { "DEVCIRCLE", CommandType.DEVCIRCLE}
+            { "DEVIATION-POINT", CommandType.DEVPOINT},
+            { "DEVIATION-CIRCLE", CommandType.DEVCIRCLE},
+            { "POINT-BY-PROJECTION", CommandType.PROJECTION }
     };
 }
-
-//public interface ICommand
-//{
-//    void DoCommand();
-//}
 
 public class Command
 {
@@ -26,20 +22,22 @@ public class Command
     public readonly List<double> Arguments;
     public readonly int Number;
 
-    public Command(CommandType type, List<double> arguments, int number)
+    public readonly string Comment;
+
+    public Command(CommandType type, List<double> arguments, int number = -1)
     {
         Type = type;
         Arguments = arguments;
         Number = number;
     }
+
+    public Command(CommandType type, string comment) //constructor for COMMENT command
+    {
+        Type = type;
+        Number = -1;
+        Comment = comment;
+    }
 }
-//public class MoveCommand : ICommand
-//{
-//    public void DoCommand()
-//    {
-//        throw new System.NotImplementedException();
-//    }
-//}
 
 public enum CommandType
 {
@@ -49,5 +47,7 @@ public enum CommandType
     CIRCLE,
     DEVPOINT,
     DEVCIRCLE,
+    PROJECTION,
+    COMMENT,
     UNKNOWN
 }

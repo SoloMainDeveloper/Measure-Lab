@@ -12,11 +12,28 @@ public class InputFieldScript : MonoBehaviour
     public InputField inputCodeField;
     public InputField fileNameToSave;
     public InputField fileNameToLoad;
+    public InputField resultsToSave;
+    public InputField resultToLoad;
+    public InputField output;
     private int caretPosition;
 
-    public void Debug() => Debugger.DebugCode(inputCodeField.text);
+    public void Quit() => Application.Quit();
+
+    public void Run() => Debugger.RunCode(output, inputCodeField.text, 0);
+
+    public void Debug() => Debugger.RunCode(output, inputCodeField.text, 1);
 
     public void Save() => PlayerPrefs.SetString(fileNameToSave.text, inputCodeField.text);
+
+    public void SaveResults() => PlayerPrefs.SetString("results/" + resultsToSave.text, output.text);
+
+    public void LoadResults()
+    {
+        if (PlayerPrefs.HasKey("results/" + resultToLoad.text))
+            output.text = $"Результаты компиляции программы \'<b>{resultToLoad.text}</b>\':\n{PlayerPrefs.GetString("results/" + resultToLoad.text)}";
+        else
+            resultToLoad.text = "Не найден файл с таким названием";
+    }
 
     public void Load()
     {
@@ -42,42 +59,49 @@ public class InputFieldScript : MonoBehaviour
     public void AddCommandIntoInput(string commandName)
     {
         //UnityEngine.Debug.Log(caretPosition);
+        string stringToAdd = null;
         switch (commandName)
         {
             case "Comment":
-                inputCodeField.text = inputCodeField.text.Insert(caretPosition, "//");
-                UpdateCaretPosition(2);
+                stringToAdd = "//";
                 break;
             case "Move":
-                inputCodeField.text = inputCodeField.text.Insert(caretPosition, "MOVE( , , );\n");
-                UpdateCaretPosition(13);
+                stringToAdd = "MOVE( , , );\n";
                 break;
             case "Point":
-                inputCodeField.text = inputCodeField.text.Insert(caretPosition, "POINT_ ( , , ) NORMAL[ , , ];\n");
-                UpdateCaretPosition(30);
+                stringToAdd = "POINT_ ( , , ) NORMAL[ , , ];\n";
                 break;
             case "Plane":
-                inputCodeField.text = inputCodeField.text.Insert(caretPosition, "PLANE_ (POINT_ , POINT_ , POINT_ );\n");
-                UpdateCaretPosition(36);
+                stringToAdd = "PLANE_ (POINT_ , POINT_ , POINT_ );\n";
                 break;
             case "Circle":
-                inputCodeField.text = inputCodeField.text.Insert(caretPosition, "CIRCLE_ (POINT_ , POINT_ , POINT_ );\n");
-                UpdateCaretPosition(37);
+                stringToAdd = "CIRCLE_ (POINT_ , POINT_ , POINT_ );\n";
                 break;
             case "DeviationPoint":
-                inputCodeField.text = inputCodeField.text.Insert(caretPosition, "DEVIATION-POINT_ ;\n");
-                UpdateCaretPosition(19);
+                stringToAdd = "DEVIATION-POINT_ ( );\n";
                 break;
             case "DeviationCircle":
-                inputCodeField.text = inputCodeField.text.Insert(caretPosition, "DEVIATION-CIRCLE_ ;\n");
-                UpdateCaretPosition(20);
+                stringToAdd = "DEVIATION-CIRCLE_ ( , );\n";
+                break;
+            case "Projection":
+                stringToAdd = "POINT-BY-PROJECTION_ (PLANE_ , POINT_ );\n";
                 break;
             case "Clear":
                 inputCodeField.text = "";
                 UpdateCaretPosition();
                 break;
+            case "ClearOutput":
+                output.text = "";
+                Debugger.ReloadCommandNumber();
+                break;
             default:
                 break;
         }
+        if (stringToAdd != null)
+        {
+            inputCodeField.text = inputCodeField.text.Insert(caretPosition, stringToAdd);
+            UpdateCaretPosition(stringToAdd.Length);
+        }
+            
     }
 }
