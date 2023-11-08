@@ -61,7 +61,7 @@ public class Machine
         }
         var equation = GetNormalAndDifference(points[0], points[1], points[2]);
         var radius = GetRadiusBy3Points(points[0], points[1], points[2]);
-        var centre = GetCircleCentre(points[0], points[1], points[2]);
+        var centre = GetCircleCentre(points[0], points[1], points[2], number);
         circle = new Circle(centre, radius.Item1, radius.Item2, equation.Item1, number, equation.Item2, equation.Item3);
         return DataHolder.Circles.TryAdd(circle.Number, circle);
     }
@@ -199,8 +199,118 @@ public class Machine
         return n1 * m2 - m1 * n2;
     }
 
-    private Point GetCircleCentre(Point p1, Point p2, Point p3)
+    private Point GetCircleCentre(Point p1, Point p2, Point p3, int number = -1)
     {
-        return new Point(0, 0, 0);
+        var centre = GetCenterPoint(new double[] { p1.X, p1.Y, p1.Z },
+                                    new double[] { p2.X, p2.Y, p2.Z },
+                                    new double[] { p3.X, p3.Y, p3.Z });
+        var actualCentre = GetCenterPoint(new double[] { p1.RealX, p1.RealY, p1.RealZ },
+                                    new double[] { p2.RealX, p2.RealY, p2.RealZ },
+                                    new double[] { p3.RealX, p3.RealY, p3.RealZ });
+        var result = new Point(centre[0], centre[1], centre[2], number * 100 + number);
+        result.UpdateCoordinates(actualCentre[0], actualCentre[1], actualCentre[2]);
+        DataHolder.Points.TryAdd(result.Number, result);
+        return result;
     }
+
+    //начало заимствования
+    private double[] GetCenterPoint(double[] p1, double[] p2, double[] p3)
+    {
+        //Находим нормальный вектор
+        var normalVector = GetNormalVector(p1, p2, p3);
+        var sidesSquareNorVec = normalVector[0] * normalVector[0] +
+        normalVector[1] * normalVector[1] + normalVector[2] * normalVector[2];
+
+        //Находим коэфициенты уравнений
+        var coefFirstEquat = GetCoefficientEquation(p1);
+        var coefSecondEquat = GetCoefficientEquation(p2);
+        var coefThirdEquat = GetCoefficientEquation(p3);
+
+        //Решаем сиcтему уравнений методом Крамера
+        var fourthPoint = new double[3];
+        var generalDeterminant = GetValueDeterminant(0, 1, 2, coefFirstEquat, coefSecondEquat, coefThirdEquat);
+        var firstDeterminant = GetValueDeterminant(3, 1, 2, coefFirstEquat, coefSecondEquat, coefThirdEquat);
+        var secondDeterminant = GetValueDeterminant(0, 3, 2, coefFirstEquat, coefSecondEquat, coefThirdEquat);
+        var thirdDeterminant = GetValueDeterminant(0, 1, 3, coefFirstEquat, coefSecondEquat, coefThirdEquat);
+
+        fourthPoint[0] = firstDeterminant / generalDeterminant;
+        fourthPoint[1] = secondDeterminant / generalDeterminant;
+        fourthPoint[2] = thirdDeterminant / generalDeterminant;
+
+        //Находим центр окружности
+        var newNormalVector = GetNewNormalVector(normalVector, p1, fourthPoint, sidesSquareNorVec);
+        var centerPoint = new double[3];
+        for (var i = 0; i < 3; i++)
+        {
+            centerPoint[i] = Math.Round(fourthPoint[i] - newNormalVector[i], 4);
+        }
+
+        return centerPoint;
+    }
+
+    private double[] GetNormalVector(double[] p1, double[] p2, double[] p3)
+    {
+        var firstVector = new double[3];
+        var secondVector = new double[3];
+        var normalVector = new double[3];
+
+        for (var i = 0; i < 3; i++)
+        {
+            firstVector[i] = p2[i] - p1[i];
+            secondVector[i] = p3[i] - p1[i];
+        }
+        normalVector[0] = Math.Round(firstVector[1] * secondVector[2] - firstVector[2] * secondVector[1], 4);
+        normalVector[1] = Math.Round(-(firstVector[0] * secondVector[2] - firstVector[2] * secondVector[0]), 4);
+        normalVector[2] = Math.Round(firstVector[0] * secondVector[1] - firstVector[1] * secondVector[0], 4);
+
+        return normalVector;
+    }
+
+    private double[] GetCoefficientEquation(double[] point)
+    {
+        var coefficientsEquat = new double[4];
+
+        for (var i = 0; i < 3; i++)
+            coefficientsEquat[i] = 2 * point[i];
+        coefficientsEquat[3] = point[0] * point[0] + point[1] * point[1] + point[2] * point[2];
+
+        return coefficientsEquat;
+    }
+
+    private double GetValueDeterminant(int i, int j, int k,
+    double[] coefFirstEquat, double[] coefSecondEquat, double[] coefThirdEquat)
+    {
+        var determinant = coefFirstEquat[i] * coefSecondEquat[j] * coefThirdEquat[k] +
+        coefFirstEquat[j] * coefSecondEquat[k] * coefThirdEquat[i] +
+        coefFirstEquat[k] * coefSecondEquat[i] * coefThirdEquat[j] -
+        (coefFirstEquat[k] * coefSecondEquat[j] * coefThirdEquat[i] +
+        coefFirstEquat[i] * coefSecondEquat[k] * coefThirdEquat[j] +
+        coefFirstEquat[j] * coefSecondEquat[i] * coefThirdEquat[k]);
+
+        return determinant;
+    }
+
+    private double[] GetNewNormalVector(double[] normalVector, double[] firstPoint,
+    double[] fourthPoint, double sidesSquareNorVec)
+    {
+        var firstScalarProduct = 0.0;
+        var secondScalarProduct = 0.0;
+
+        for (var i = 0; i < 3; i++)
+        {
+            firstScalarProduct += normalVector[i] * fourthPoint[i];
+            secondScalarProduct += normalVector[i] * firstPoint[i];
+        }
+
+        var k = (firstScalarProduct - secondScalarProduct) / sidesSquareNorVec;
+        var newNormalVector = new double[3];
+
+        for (var i = 0; i < 3; i++)
+        {
+            newNormalVector[i] = k * normalVector[i];
+        }
+
+        return newNormalVector;
+    }
+    //конец заимствованного кода
 }
