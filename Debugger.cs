@@ -11,21 +11,23 @@ using UnityEngine.UI;
 public static class Debugger
 {
     private static int commandNumber = 0;
+    private static Machine machine = new(100, 150, 200, 0.001, new Point(0, 0, 0));
 
     public static void RunCode(InputField output, string inputCode, int type)
     {
         System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("en-US");
-        var machine = new Machine(100, 150, 200, 0.001);
         var parsedCode = RemoveUselessSymbolsAndParse(inputCode);
         var result = String.Empty;
         if (type == 0)
         {
+            machine.ReloadPosition();
             commandNumber = 0;
         }
         for (var i = commandNumber; i < parsedCode.Length; i++)
         {
             if (i == 0)
             {
+                machine.ReloadPosition();
                 DataHolder.Points.Clear();
                 DataHolder.Planes.Clear();
                 DataHolder.Circles.Clear();
@@ -38,7 +40,8 @@ public static class Debugger
                 {
                     case CommandType.MOVE:
                         machine.Position = machine.Move(new Point(command.Arguments));
-                        result += $"<b><color=purple>LOCATION</color></b>: {machine.Position}";
+                        result += $"<b><color=purple>LOCATION</color></b>:  оординаты измерительного устройства: ({machine.Position.X}," +
+                            $" {machine.Position.Y}, {machine.Position.Z})\n\n";
                         break;
                     case CommandType.POINT:
                         if (machine.Point(command.Arguments, command.Number, out Point point))

@@ -16,6 +16,12 @@ public class InputFieldScript : MonoBehaviour
     public InputField resultToLoad;
     public InputField output;
     private int caretPosition;
+    //private Machine machine;
+
+    //public void Start()
+    //{
+    //    machine = new Machine(100, 150, 200, 0.001);
+    //}
 
     public void Quit() => Application.Quit();
 

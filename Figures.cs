@@ -65,13 +65,16 @@ public class Point : Figure
 
     public Vector Normal { get; private set; }
 
-    public Point(double x, double y, double z, int number = -1)
+    public Point(double x, double y, double z, int number = -1, Vector vector = null)
     {
         X = x;
         Y = y;
         Z = z;
         Number = number;
-        Normal = new Vector();
+        if (vector == null)
+            Normal = new Vector();
+        else
+            Normal = vector;
     }
 
     public Point(List<double> arguments, int amount = 3, int number = -1)

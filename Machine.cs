@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -12,6 +13,11 @@ public class Machine
     public readonly double MaxWidthCm;
     public readonly double MaxLengthCm;
     public readonly double Deviation;
+
+    public void ReloadPosition()
+    {
+        Position = new Point(0, 0, 0);
+    }
 
     public Machine(double height, double width, double length, double deviation, Point position = null)
     {
@@ -27,25 +33,51 @@ public class Machine
         var wantedX = Position.X + route.X;
         var wantedY = Position.Y + route.Y;
         var wantedZ = Position.Z + route.Z;
-        var newX = wantedX >= 0 && wantedX <= MaxLengthCm ? wantedX : Position.X;
-        var newY = wantedY >= 0 && wantedY <= MaxWidthCm ? wantedY : Position.Y;
-        var newZ = wantedZ >= 0 && wantedZ <= MaxHeightCm ? wantedZ : Position.Z;
-        return new Point(newX, newY, newZ);
+        if (wantedX < 0)
+            wantedX = 0;
+        if (wantedX > MaxLengthCm)
+            wantedX = MaxLengthCm;
+        if (wantedY < 0)
+            wantedY = 0;
+        if (wantedY > MaxWidthCm)
+            wantedY = MaxWidthCm;
+        if (wantedZ < 0)
+            wantedZ = 0;
+        if (wantedZ > MaxHeightCm)
+            wantedZ = MaxHeightCm;
+        //var newX = wantedX >= 0 && wantedX <= MaxLengthCm ? wantedX : Position.X;
+        //var newY = wantedY >= 0 && wantedY <= MaxWidthCm ? wantedY : Position.Y;
+        //var newZ = wantedZ >= 0 && wantedZ <= MaxHeightCm ? wantedZ : Position.Z;
+        return new Point(wantedX, wantedY, wantedZ);
     }
 
     public bool Point(List<double> arguments, int number, out Point point)
     {
         var rand = new System.Random();
-        point = new Point(new List<double>(arguments.GetRange(0, 6)), 6, number);
+        var normal = GetNormalizedVector(arguments[3], arguments[4], arguments[5]);
+        point = new Point(arguments[0], arguments[1], arguments[2], number, normal);
         var realX = point.X + Math.Round((rand.NextDouble() - 0.5) * Deviation, 4);
         var realY = point.Y + Math.Round((rand.NextDouble() - 0.5) * Deviation, 4);
         var realZ = point.Z + Math.Round((rand.NextDouble() - 0.5) * Deviation, 4);
         var normalRealX = point.Normal.VectorX + Math.Round((rand.NextDouble() - 0.5) * Deviation * 0.5, 4);
         var normalRealY = point.Normal.VectorY + Math.Round((rand.NextDouble() - 0.5) * Deviation * 0.5, 4);
         var normalRealZ = point.Normal.VectorZ + Math.Round((rand.NextDouble() - 0.5) * Deviation * 0.5, 4);
+        var realNormal = GetNormalizedVector(normalRealX, normalRealY, normalRealZ);
         point.UpdateCoordinates(realX, realY, realZ);
-        point.Normal.UpdateFactVector(normalRealX, normalRealY, normalRealZ);
+        point.Normal.UpdateFactVector(realNormal.VectorX, realNormal.VectorY, realNormal.VectorZ);
         return DataHolder.Points.TryAdd(point.Number, point);
+    }
+
+    private Vector GetNormalizedVector(double v1, double v2, double v3)
+    {
+        var invLength = GetInvLength(v1, v2, v3);
+        return new Vector(Math.Round(v1 * invLength, 4), Math.Round(v2 * invLength, 4), Math.Round(v3 * invLength, 4));
+    }
+
+    private double GetInvLength(double x, double y, double z)
+    {
+        var length = Math.Sqrt(x * x + y * y + z * z);
+        return 1 / length;
     }
 
     public bool Circle(List<double> arguments, int number, out Circle circle)
@@ -61,7 +93,9 @@ public class Machine
         }
         var equation = GetNormalAndDifference(points[0], points[1], points[2]);
         var radius = GetRadiusBy3Points(points[0], points[1], points[2]);
-        var centre = GetCircleCentre(points[0], points[1], points[2], number);
+        var centre = GetCircleCentre(points[0], points[1], points[2], equation.Item1, number);
+        if (double.IsNaN(centre.X) || double.IsNaN(centre.Y) || double.IsNaN(centre.Z))
+            return false;
         circle = new Circle(centre, radius.Item1, radius.Item2, equation.Item1, number, equation.Item2, equation.Item3);
         return DataHolder.Circles.TryAdd(circle.Number, circle);
     }
@@ -158,7 +192,7 @@ public class Machine
             var realX = normal.ActualVectorX * realParamT + point.RealX;
             var realY = normal.ActualVectorY * realParamT + point.RealY;
             var realZ = normal.ActualVectorZ * realParamT + point.RealZ;
-            projectionPoint = new Point(Math.Round(x, 4), Math.Round(y, 4), Math.Round(z, 4), number);
+            projectionPoint = new Point(Math.Round(x, 4), Math.Round(y, 4), Math.Round(z, 4), number, normal);
             projectionPoint.UpdateCoordinates(Math.Round(realX, 4), Math.Round(realY, 4), Math.Round(realZ, 4));
             return DataHolder.Points.TryAdd(projectionPoint.Number, projectionPoint);
         }
@@ -189,9 +223,12 @@ public class Machine
         var coefY2 = -GetDetermintantDoubleMatrix(p2.RealX - start.RealX, p3.RealX - start.RealX, p2.RealZ - start.RealZ, p3.RealZ - start.RealZ);
         var coefZ2 = GetDetermintantDoubleMatrix(p2.RealX - start.RealX, p3.RealX - start.RealX, p2.RealY - start.RealY, p3.RealY - start.RealY);
         var d2 = Math.Round(coefX2 * (-start.RealX) + coefY2 * (-start.RealY) + coefZ2 * (-start.RealZ), 4);
-        var normal = new Vector(coefX, coefY, coefZ);
-        normal.UpdateFactVector(Math.Round(coefX2, 4), Math.Round(coefY2, 4), Math.Round(coefZ2, 4));
-        return (normal, d, d2);
+        var normal = GetNormalizedVector(coefX, coefY, coefZ);
+        var realNormal = GetNormalizedVector(coefX2, coefY2, coefZ2);
+        var invLength = GetInvLength(coefX, coefY, coefZ);
+        var invLength2 = GetInvLength(coefX2, coefY2, coefZ2);
+        normal.UpdateFactVector(realNormal.VectorX, realNormal.VectorY, realNormal.VectorZ);
+        return (normal, Math.Round(d * invLength, 4), Math.Round(d2 * invLength2, 4));
     }
 
     private double GetDetermintantDoubleMatrix(double n1, double n2, double m1, double m2)
@@ -199,7 +236,7 @@ public class Machine
         return n1 * m2 - m1 * n2;
     }
 
-    private Point GetCircleCentre(Point p1, Point p2, Point p3, int number = -1)
+    private Point GetCircleCentre(Point p1, Point p2, Point p3, Vector vector, int number = -1)
     {
         var centre = GetCenterPoint(new double[] { p1.X, p1.Y, p1.Z },
                                     new double[] { p2.X, p2.Y, p2.Z },
@@ -207,7 +244,7 @@ public class Machine
         var actualCentre = GetCenterPoint(new double[] { p1.RealX, p1.RealY, p1.RealZ },
                                     new double[] { p2.RealX, p2.RealY, p2.RealZ },
                                     new double[] { p3.RealX, p3.RealY, p3.RealZ });
-        var result = new Point(centre[0], centre[1], centre[2], number * 100 + number);
+        var result = new Point(centre[0], centre[1], centre[2], number * 100 + number, vector);
         result.UpdateCoordinates(actualCentre[0], actualCentre[1], actualCentre[2]);
         DataHolder.Points.TryAdd(result.Number, result);
         return result;
@@ -216,6 +253,20 @@ public class Machine
     //начало заимствовани€
     private double[] GetCenterPoint(double[] p1, double[] p2, double[] p3)
     {
+        //Debug.Log(p1[0] + " " + p1[1] + " " + p1[2]);
+        //Debug.Log(p2[0] + " " + p2[1] + " " + p2[2]);
+        //Debug.Log(p3[0] + " " + p3[1] + " " + p3[2]);
+        if (IsValueLessOrEqualZero(p1, p2, p3, out var delta))
+        {
+            delta = Math.Abs(delta);
+            for (var i = 0; i < 3; i++)
+            {
+                p1[i] += delta + 1;
+                p2[i] += delta + 1;
+                p3[i] += delta + 1;
+            }
+        }
+
         //Ќаходим нормальный вектор
         var normalVector = GetNormalVector(p1, p2, p3);
         var sidesSquareNorVec = normalVector[0] * normalVector[0] +
@@ -242,10 +293,17 @@ public class Machine
         var centerPoint = new double[3];
         for (var i = 0; i < 3; i++)
         {
-            centerPoint[i] = Math.Round(fourthPoint[i] - newNormalVector[i], 4);
+            centerPoint[i] = Math.Round(fourthPoint[i] - newNormalVector[i] - delta - 1, 4);
         }
 
         return centerPoint;
+    }
+
+    private bool IsValueLessOrEqualZero(double[] p1, double[] p2, double[] p3, out double min)
+    {
+        var union = p1.Concat(p2).Concat(p3);
+        min = union.Min();
+        return min <= 0;
     }
 
     private double[] GetNormalVector(double[] p1, double[] p2, double[] p3)
@@ -271,7 +329,9 @@ public class Machine
         var coefficientsEquat = new double[4];
 
         for (var i = 0; i < 3; i++)
+        {
             coefficientsEquat[i] = 2 * point[i];
+        }
         coefficientsEquat[3] = point[0] * point[0] + point[1] * point[1] + point[2] * point[2];
 
         return coefficientsEquat;
@@ -280,6 +340,9 @@ public class Machine
     private double GetValueDeterminant(int i, int j, int k,
     double[] coefFirstEquat, double[] coefSecondEquat, double[] coefThirdEquat)
     {
+        //Debug.Log(coefFirstEquat[0] + " " + coefFirstEquat[1] + " " + coefFirstEquat[2] + " " + coefFirstEquat[3] + "\n" +
+        //    coefSecondEquat[0] + " " + coefSecondEquat[1] + " " + coefSecondEquat[2] + " " + coefSecondEquat[3] + "\n" +
+        //    coefThirdEquat[0] + " " + coefThirdEquat[1] + " " + coefThirdEquat[2] + " " + coefThirdEquat[3] + "\n");
         var determinant = coefFirstEquat[i] * coefSecondEquat[j] * coefThirdEquat[k] +
         coefFirstEquat[j] * coefSecondEquat[k] * coefThirdEquat[i] +
         coefFirstEquat[k] * coefSecondEquat[i] * coefThirdEquat[j] -
